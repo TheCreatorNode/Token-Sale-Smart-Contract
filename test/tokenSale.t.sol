@@ -28,11 +28,39 @@ contract testTokenSale is Test {
     address public wallet = makeAddr("wallet");
 
     function setUp() public {
-        vm.startPrank(owner);
+        vm.prank(owner);
         saleToken = new mockToken("sale Token", "SALE");
 
+        vm.prank(owner);
         sale = new TokenSale(
             address(saleToken), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, wallet, 21 days, owner
         );
+
+        vm.deal(buyer, 100_000 ether);
+    }
+
+    function testConstruction() public view {
+        assertEq(address(sale.token()), address(saleToken));
+        assertEq(address(sale.owner()), address(owner));
+        assertEq(address(sale.wallet()), address(wallet));
+    }
+
+    function testConstructionInvalidAddress() public {
+        vm.expectRevert(TokenSale.invalidAddress.selector);
+        new TokenSale(address(0), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, wallet, 21 days, owner);
+
+        vm.expectRevert(TokenSale.invalidAddress.selector);
+        new TokenSale(
+            address(saleToken), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, address(0), 21 days, owner
+        );
+
+        vm.expectRevert(TokenSale.invalidAddress.selector);
+        new TokenSale(
+            address(saleToken), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, wallet, 21 days, address(0)
+        );
+    }
+
+    function testStartSale() external {
+        vm.prank(owner);
     }
 }
