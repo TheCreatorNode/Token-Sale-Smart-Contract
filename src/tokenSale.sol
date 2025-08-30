@@ -6,14 +6,14 @@ import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/Reentr
 
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
-contract tokenSale is ReentrancyGuard {
+contract TokenSale is ReentrancyGuard {
     using Math for uint256;
 
     // token put up for sales
-    IERC20 public token;
+    IERC20 public immutable token;
 
     //price rate of a token in eth
-    uint256 public tokenRate;
+    uint256 public immutable tokenRate;
 
     //maximum funds raise
     uint256 immutable CAP;
@@ -21,54 +21,52 @@ contract tokenSale is ReentrancyGuard {
     //sales window duration
     uint256 immutable salesPeriod;
 
+    //smallest amount allowed per buyer
+    uint256 public immutable minimumContribution;
+
+    //largest amount per buyer
+    uint256 public immutable maximumContribution;
+
+    //address where funds are collected
+    address public immutable wallet;
+
+    //lock duration56
+    uint256 public immutable lockPeriod;
+
+    //contract Owner
+    address public immutable owner;
+
     //sales window start time
     uint256 public startTime;
 
     //sales window close time
     uint256 public endTime;
 
-    //smallest amount allowed per buyer
-    uint256 public minimumContribution;
-
-    //largest amount per buyer
-    uint256 public maximumContribution;
-
-    //address where funds are collected
-    address immutable wallet;
-
-    //lock duration56
-    uint256 public immutable lockPeriod;
-
-    //contract Owner
-    address public owner;
-
     bool public isSaleOpen;
 
     //use to track how many tokens each address bought
     mapping(address => uint256) public tokensBought;
 
-    event tokenPurchased(address buyer, uint256 amount);
-    event tokenLocked(address buyer, uint256 amount);
-    event tokenClaimed(uint256 amount);
+    event tokenPurchased(address indexed buyer, uint256 amount);
+    event tokenLocked(address indexed buyer, uint256 amount);
+    event tokenClaimed(address indexed buyer, uint256 amount);
 
     error salesClosed();
-    error belowMinimumCost();
-    error maxTokenPassed();
+    error belowMinimumContribution();
+    error aboveMaximumContribution();
     error invalidAddress();
     error onlyOwnerAction();
+    error salesActive();
+    error salesNotActive();
 
     modifier onlyWhileOpen(uint256 _startTime, uint256 _endTime) {
-        if (block.timestamp < _startTime || block.timestamp > _endTime) revert salesClosed();
+        if (!isSaleOpen || block.timestamp < _startTime || block.timestamp > _endTime) revert salesClosed();
         _;
     }
 
-    modifier cost(uint256 _amount) {
-        if (_amount < 0.01 ether) revert belowMinimumCost();
-        _;
-    }
-
-    modifier withinLimit(uint256 _token) {
-        if (_token > 100) revert maxTokenPassed();
+    modifier validContribution(uint256 _amount) {
+        if (_amount < minimumContribution) revert belowMinimumContribution();
+        if (_amount > maximumContribution) revert aboveMaximumContribution();
         _;
     }
 
@@ -87,11 +85,11 @@ contract tokenSale is ReentrancyGuard {
         uint256 _lockPeriod,
         address _owner
     ) ReentrancyGuard() {
-        if (_tokenAddr == address(0)) revert invalidAddress();
+        if (_tokenAddr == address(0) || _wallet == address(0) || _owner == address(0)) revert invalidAddress();
+
         token = IERC20(_tokenAddr);
         CAP = _CAP;
         salesPeriod = _salesPeriod;
-        endTime = startTime + salesPeriod;
         minimumContribution = _minimumContribution;
         maximumContribution = _maxContribution;
         lockPeriod = _lockPeriod;
@@ -99,12 +97,17 @@ contract tokenSale is ReentrancyGuard {
         wallet = _wallet;
     }
 
-    function startSale() public onlyOwner {
-        isSaleOpen = true;
+    //==== Sale Controls ====//
+    function startSale() external onlyOwner {
+        if (isSaleOpen) revert salesActive();
+
         startTime = block.timestamp;
+        endTime = startTime + salesPeriod;
+        isSaleOpen = true;
     }
 
-    function endSale() public onlyOwner {
+    function endSale() external onlyOwner {
+        if (!isSaleOpen) revert salesNotActive();
         isSaleOpen = false;
     }
 }
