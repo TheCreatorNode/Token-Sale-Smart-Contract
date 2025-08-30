@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
-import {safeMath} from "lib/openzeppelin-contracts/contracts/utils/Math.sol";
+import {safeMath} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 contract tokenSale is ReentrancyGuard {
     using safeMath for uint256;
@@ -21,6 +21,9 @@ contract tokenSale is ReentrancyGuard {
     //sales window duration
     uint256 immutable salesPeriod;
 
+    //sales window start time
+    uint256 immutable startTime;
+
     //sales window close time
     uint256 immutable endTime;
 
@@ -36,7 +39,51 @@ contract tokenSale is ReentrancyGuard {
     //lock duration56
     uint256 public immutable lockPeriod;
 
+    //use to track how many tokens each address bought
+    mapping(address => uint256) public tokensBought;
+
     event tokenPurchased(address buyer, uint256 amount);
     event tokenLocked(address buyer, uint256 amount);
     event tokenClaimed(uint256 amount);
+
+    error salesClosed();
+    error belowMinimumCost();
+    error maxTokenPassed();
+    error invalidAddress();
+
+    modifier onlyWhileOpen(uint256 _startTime, uint256 _endTime) {
+        if (block.timestamp < _startTime || block.timestamp > _endTime) revert salesClosed();
+        _;
+    }
+
+    modifier cost(uint256 _amount) {
+        if (_amount < 0.01 ether) revert belowMinimumCost();
+        _;
+    }
+
+    modifier withinLimit(uint256 _token) {
+        if (_token > 100) revert maxTokenPassed();
+        _;
+    }
+
+    constructor(
+        address _tokenAddr,
+        uint256 _CAP,
+        uint256 _salesPeriod,
+        uint256 _startTime,
+        uint256 _minimumContribution,
+        uint256 _maxContribution,
+        address _wallet,
+        uint256 _lockPeriod
+    ) ReentrancyGuard() {
+        if (_tokenAddr == address(0)) revert invalidAddress();
+        token = IERC20(_tokenAddr);
+        CAP = _CAP;
+        salesPeriod = _salesPeriod;
+        startTime = _salesPeriod;
+        endTime = startTime + salesPeriod;
+        minimumContribution = _minimumContribution;
+        maximumContribution = _maxContribution;
+        lockPeriod = _lockPeriod;
+    }
 }
