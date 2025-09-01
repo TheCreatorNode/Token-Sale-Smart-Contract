@@ -12,8 +12,14 @@ contract TokenSale is ReentrancyGuard {
     // token put up for sales
     IERC20 public immutable token;
 
+    //stablecoin
+    IERC20 public immutable stableCoin;
+
     //price rate of a token in eth
-    uint256 public immutable tokenRate;
+    uint256 public immutable ethRate;
+
+    //price rate of a token in stable coin
+    uint256 public immutable stableRate;
 
     //maximum funds raise
     uint256 immutable cap;
@@ -28,7 +34,7 @@ contract TokenSale is ReentrancyGuard {
     uint256 public immutable maximumContribution;
 
     //address where funds are collected
-    address public immutable wallet;
+    address payable immutable wallet;
 
     //lock duration56
     uint256 public immutable lockPeriod;
@@ -58,6 +64,8 @@ contract TokenSale is ReentrancyGuard {
     error onlyOwnerAction();
     error salesActive();
     error salesNotActive();
+    error InsufficientBalance();
+    error transferFailed();
 
     modifier onlyWhileOpen() {
         if (!isSaleOpen || block.timestamp < startTime || block.timestamp > endTime) revert salesClosed();
@@ -83,7 +91,9 @@ contract TokenSale is ReentrancyGuard {
         uint256 _maxContribution,
         address _wallet,
         uint256 _lockPeriod,
-        address _owner
+        address _owner,
+        uint256 _ethRate,
+        uint256 _stableRate
     ) ReentrancyGuard() {
         if (_tokenAddr == address(0) || _wallet == address(0) || _owner == address(0)) revert invalidAddress();
 
@@ -95,6 +105,8 @@ contract TokenSale is ReentrancyGuard {
         lockPeriod = _lockPeriod;
         owner = _owner;
         wallet = _wallet;
+        ethRate = _ethRate;
+        stableRate = _stableRate;
     }
 
     //==== Sale Controls ====//
@@ -111,8 +123,35 @@ contract TokenSale is ReentrancyGuard {
         isSaleOpen = false;
     }
 
-    function buyToken() external payable nonReentrant onlyWhileOpen validContribution {
+    function buyTokenWithEth() external payable nonReentrant onlyWhileOpen validContribution {
         uint256 amount = msg.value;
-        uint256 tokenToBuy = amount * tokenRate;
+        uint256 tokenToBuy = (amount * ethRate) / 1e18;
+
+        if (token.balanceOf(address(this)) <= tokenToBuy) revert InsufficientBalance();
+
+        tokensBought[msg.sender] = tokenToBuy;
+
+        token.transfer(msg.sender, tokenToBuy);
+
+        (bool success,) = wallet.call{value: amount}("");
+        if (!success) revert transferFailed();
+
+        emit tokenPurchased(msg.sender, tokenToBuy);
+    }
+
+    function buyTokenWithStableCoin(uint256 amount) external nonReentrant onlyWhileOpen {
+        if (amount < minimumContribution) revert belowMinimumContribution();
+        if (amount > maximumContribution) revert aboveMaximumContribution();
+
+        uint256 tokenToBuy = (amount * stableRate) / 1e18;
+
+        if (token.balanceOf(address(this)) <= tokenToBuy) revert InsufficientBalance();
+
+        require(stableCoin.transferFrom(msg.sender, wallet, amount), "Transaction Failed");
+        tokensBought[msg.sender] = tokenToBuy;
+
+        token.transfer(msg.sender, tokenToBuy);
+
+        emit tokenPurchased(msg.sender, tokenToBuy);
     }
 }
