@@ -31,6 +31,7 @@ contract testTokenSale is Test {
         vm.prank(owner);
         saleToken = new mockToken("sale Token", "SALE");
 
+        //uint256 salesPeriod = 10 days;
         vm.prank(owner);
         sale = new TokenSale(
             address(saleToken), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, wallet, 21 days, owner
@@ -62,5 +63,24 @@ contract testTokenSale is Test {
 
     function testStartSale() external {
         vm.prank(owner);
+        sale.startSale();
+
+        assertTrue(sale.isSaleOpen());
+        assertEq(sale.startTime(), block.timestamp);
+        assertEq(sale.endTime(), block.timestamp + 10 days);
+    }
+
+    function testExpectErrorEndSale() external {
+        vm.prank(owner);
+        vm.expectRevert(TokenSale.salesNotActive.selector);
+        sale.endSale();
+
+        assertFalse(sale.isSaleOpen());
+    }
+
+    function testPrankBuyerToCallStartSale() external {
+        vm.prank(buyer);
+        vm.expectRevert(TokenSale.onlyOwnerAction.selector);
+        sale.startSale();
     }
 }

@@ -59,14 +59,14 @@ contract TokenSale is ReentrancyGuard {
     error salesActive();
     error salesNotActive();
 
-    modifier onlyWhileOpen(uint256 _startTime, uint256 _endTime) {
-        if (!isSaleOpen || block.timestamp < _startTime || block.timestamp > _endTime) revert salesClosed();
+    modifier onlyWhileOpen() {
+        if (!isSaleOpen || block.timestamp < startTime || block.timestamp > endTime) revert salesClosed();
         _;
     }
 
-    modifier validContribution(uint256 _amount) {
-        if (_amount < minimumContribution) revert belowMinimumContribution();
-        if (_amount > maximumContribution) revert aboveMaximumContribution();
+    modifier validContribution() {
+        if (msg.value < minimumContribution) revert belowMinimumContribution();
+        if (msg.value > maximumContribution) revert aboveMaximumContribution();
         _;
     }
 
@@ -109,5 +109,10 @@ contract TokenSale is ReentrancyGuard {
     function endSale() external onlyOwner {
         if (!isSaleOpen) revert salesNotActive();
         isSaleOpen = false;
+    }
+
+    function buyToken() external payable nonReentrant onlyWhileOpen validContribution {
+        uint256 amount = msg.value;
+        uint256 tokenToBuy = amount * tokenRate;
     }
 }
