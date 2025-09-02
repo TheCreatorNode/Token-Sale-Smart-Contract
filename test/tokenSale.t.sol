@@ -22,42 +22,104 @@ contract mockToken is ERC20 {
 contract testTokenSale is Test {
     TokenSale public sale;
     mockToken public saleToken;
+    mockToken public stableCoin;
 
     address public owner = makeAddr("owner");
     address public buyer = makeAddr("buyer");
-    address public wallet = makeAddr("wallet");
+    address public walletAddr = makeAddr("wallet");
 
     function setUp() public {
-        vm.prank(owner);
+        stableCoin = new mockToken("mockStableCoin", "MSC");
+        // vm.prank(owner);
         saleToken = new mockToken("sale Token", "SALE");
 
         //uint256 salesPeriod = 10 days;
         vm.prank(owner);
         sale = new TokenSale(
-            address(saleToken), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, wallet, 21 days, owner
+            address(saleToken),
+            address(stableCoin),
+            1_000_000 ether,
+            10 days,
+            1 ether,
+            100_000 ether,
+            walletAddr,
+            21 days,
+            owner,
+            100,
+            1
         );
 
-        vm.deal(buyer, 100_000 ether);
+        vm.deal(buyer, 200_000 ether);
+
+        //mint sale token to contract
+        saleToken.mint(address(sale), 1_000_00 * 1e18);
     }
 
     function testConstruction() public view {
         assertEq(address(sale.token()), address(saleToken));
-        assertEq(address(sale.owner()), address(owner));
-        assertEq(address(sale.wallet()), address(wallet));
+        assertEq(address(sale.stableCoin()), address(stableCoin));
+        assertEq(address(sale.owner()), owner);
+        assertEq(address(sale.wallet()), walletAddr);
     }
 
     function testConstructionInvalidAddress() public {
         vm.expectRevert(TokenSale.invalidAddress.selector);
-        new TokenSale(address(0), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, wallet, 21 days, owner);
-
-        vm.expectRevert(TokenSale.invalidAddress.selector);
         new TokenSale(
-            address(saleToken), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, address(0), 21 days, owner
+            address(0),
+            address(stableCoin),
+            1_000_000 ether,
+            10 days,
+            1 ether,
+            100_000 ether,
+            walletAddr,
+            21 days,
+            owner,
+            100,
+            1
         );
 
         vm.expectRevert(TokenSale.invalidAddress.selector);
         new TokenSale(
-            address(saleToken), 1_000_000 ether, 10 days, 0.01 ether, 100_000 ether, wallet, 21 days, address(0)
+            address(saleToken),
+            address(stableCoin),
+            1_000_000 ether,
+            10 days,
+            1 ether,
+            100_000 ether,
+            address(0),
+            21 days,
+            owner,
+            100,
+            1
+        );
+
+        vm.expectRevert(TokenSale.invalidAddress.selector);
+        new TokenSale(
+            address(saleToken),
+            address(stableCoin),
+            1_000_000 ether,
+            10 days,
+            1 ether,
+            100_000 ether,
+            walletAddr,
+            21 days,
+            address(0),
+            100,
+            1
+        );
+        vm.expectRevert(TokenSale.invalidAddress.selector);
+        new TokenSale(
+            address(saleToken),
+            address(0),
+            1_000_000 ether,
+            10 days,
+            1 ether,
+            100_000 ether,
+            walletAddr,
+            21 days,
+            owner,
+            100,
+            1
         );
     }
 
@@ -82,5 +144,66 @@ contract testTokenSale is Test {
         vm.prank(buyer);
         vm.expectRevert(TokenSale.onlyOwnerAction.selector);
         sale.startSale();
+    }
+
+    function testBuyTokenWithEth() public {
+        vm.prank(owner);
+        sale.startSale();
+
+        vm.deal(buyer, 100 ether);
+
+        uint256 balanceBefore = sale.wallet().balance;
+
+        vm.prank(buyer);
+        sale.buyTokenWithEth{value: 10 ether}();
+
+        uint256 balanceAfter = sale.wallet().balance;
+
+        assertEq(balanceAfter, balanceBefore + 10 ether);
+        assertEq(sale.tokensBought(buyer), 1000);
+        assertEq(saleToken.balanceOf(buyer), 1000);
+    }
+
+    function testBuyTokenWithStableCoin() external {
+        vm.prank(owner);
+        sale.startSale();
+
+        stableCoin.mint(buyer, 1000 * 1e18);
+        vm.prank(buyer);
+        stableCoin.approve(address(sale), 1000 * 1e18);
+        uint256 balanceBefore = stableCoin.balanceOf(sale.wallet());
+
+        vm.prank(buyer);
+        sale.buyTokenWithStableCoin(100 * 1e18);
+
+        uint256 balanceAfter = stableCoin.balanceOf(sale.wallet());
+
+        assertEq(balanceAfter, balanceBefore + 100 * 1e18);
+    }
+
+    function testBuyTokenWithEthRevertSaleClose() public {
+        vm.prank(buyer);
+        vm.expectRevert(TokenSale.salesClosed.selector);
+        sale.buyTokenWithEth();
+    }
+
+    function testBuyTokenWithRevertAboveMaximumContribution() public {
+        vm.prank(owner);
+        sale.startSale();
+
+        vm.deal(buyer, 200_000 ether);
+        vm.prank(buyer);
+        vm.expectRevert(TokenSale.aboveMaximumContribution.selector);
+        sale.buyTokenWithEth{value: 100_101 ether}();
+    }
+
+    function testBuyTokenWithRevertBelowMinimumContribution() public {
+        vm.prank(owner);
+        sale.startSale();
+
+        vm.deal(buyer, 200_000 ether);
+        vm.prank(buyer);
+        vm.expectRevert(TokenSale.belowMinimumContribution.selector);
+        sale.buyTokenWithEth{value: 0.001 ether}();
     }
 }

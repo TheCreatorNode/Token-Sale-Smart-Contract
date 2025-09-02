@@ -34,7 +34,7 @@ contract TokenSale is ReentrancyGuard {
     uint256 public immutable maximumContribution;
 
     //address where funds are collected
-    address payable immutable wallet;
+    address public immutable wallet;
 
     //lock duration56
     uint256 public immutable lockPeriod;
@@ -85,6 +85,7 @@ contract TokenSale is ReentrancyGuard {
 
     constructor(
         address _tokenAddr,
+        address _stableAddr,
         uint256 _cap,
         uint256 _salesPeriod,
         uint256 _minimumContribution,
@@ -95,9 +96,12 @@ contract TokenSale is ReentrancyGuard {
         uint256 _ethRate,
         uint256 _stableRate
     ) ReentrancyGuard() {
-        if (_tokenAddr == address(0) || _wallet == address(0) || _owner == address(0)) revert invalidAddress();
+        if (_tokenAddr == address(0) || _stableAddr == address(0) || _wallet == address(0) || _owner == address(0)) {
+            revert invalidAddress();
+        }
 
         token = IERC20(_tokenAddr);
+        stableCoin = IERC20(_stableAddr);
         cap = _cap;
         salesPeriod = _salesPeriod;
         minimumContribution = _minimumContribution;
