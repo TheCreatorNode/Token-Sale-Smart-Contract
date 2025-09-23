@@ -206,4 +206,25 @@ contract testTokenSale is Test {
         vm.expectRevert(TokenSale.belowMinimumContribution.selector);
         sale.buyTokenWithEth{value: 0.001 ether}();
     }
+
+    function testAccumulatesTokensBoughtOnMultiplePurchases() public {
+        vm.prank(owner);
+        sale.startSale();
+
+        vm.prank(buyer);
+        sale.buyTokenWithEth{value: 10 ether}();
+
+        uint256 expectedTokensAfterFirstBuy = 1000;
+        assertEq(sale.tokensBought(buyer), expectedTokensAfterFirstBuy, "Incorrect amount after first purchase");
+
+        vm.prank(buyer);
+        sale.buyTokenWithEth{value: 5 ether}();
+
+        uint256 expectedTokensAfterSecondBuy = 1500;
+        assertEq(
+            sale.tokensBought(buyer),
+            expectedTokensAfterSecondBuy,
+            "FAIL: The contract did not accumulate the total tokens bought."
+        );
+    }
 }

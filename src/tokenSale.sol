@@ -133,7 +133,7 @@ contract TokenSale is ReentrancyGuard {
 
         if (token.balanceOf(address(this)) <= tokenToBuy) revert InsufficientBalance();
 
-        tokensBought[msg.sender] = tokenToBuy;
+        tokensBought[msg.sender] += tokenToBuy;
 
         token.transfer(msg.sender, tokenToBuy);
 
@@ -152,7 +152,7 @@ contract TokenSale is ReentrancyGuard {
         if (token.balanceOf(address(this)) <= tokenToBuy) revert InsufficientBalance();
 
         require(stableCoin.transferFrom(msg.sender, wallet, amount), "Transaction Failed");
-        tokensBought[msg.sender] = tokenToBuy;
+        tokensBought[msg.sender] += tokenToBuy;
 
         token.transfer(msg.sender, tokenToBuy);
 
